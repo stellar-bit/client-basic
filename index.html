@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spacecraft</title>
+    <style>
+        canvas {
+            background-color: black;
+        }
+    </style>
+</head>
+
+<body id="spacecraft">
+    <button id="load-computer-init">Load Wasm File</button>
+    <input type="file" id="computer-init-file" accept=".js" style="display: none;" />
+    <button id="load-computer-wasm">Load Wasm Data</button>
+    <input type="file" id="computer-wasm-file" accept=".wasm" style="display: none;" />
+    <script type="module">
+        import init, {set_computer_func} from "./pkg/wasm_spacecraft_client.js";
+        await init();
+
+        var init_file_url;
+
+        document.getElementById("load-computer-wasm").addEventListener("click", () => {
+            document.getElementById("computer-wasm-file").click();
+        });
+
+
+        document.getElementById("load-computer-init").addEventListener("click", () => {
+            document.getElementById("computer-init-file").click();
+        });
+
+        document.getElementById("computer-init-file").addEventListener("change", async function(e) {
+            const file = e.target.files[0];
+
+            init_file_url = URL.createObjectURL(file);
+            this.value = null;
+        });
+
+        document.getElementById("computer-wasm-file").addEventListener("change", async function(e) {
+            // load javascript file and execute function inside it called 'execute'
+            const file = e.target.files[0];
+
+            // Create a URL from the file object
+            const fileURL = URL.createObjectURL(file);
+
+            // Dynamically import the module
+            import(init_file_url).then(async (module) => {
+            // Set the computer_func to the module's 'execute' function
+                console.log("initializing...");
+                console.log(module);
+            await module.default(fileURL);
+            console.log("initialized");
+            console.log(module.execute);
+            set_computer_func(module.execute);
+
+            // Release the URL object after importing
+            URL.revokeObjectURL(fileURL);
+            }).catch((error) => {
+            console.error('Error importing module:', error);
+            });
+            this.value = null;
+        });
+    </script>
+</body>
+
+</html>
+ 

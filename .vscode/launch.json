@@ -1,0 +1,194 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'spacecraft_server'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=spacecraft_server",
+                    "--package=spacecraft_server"
+                ],
+                "filter": {
+                    "name": "spacecraft_server",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'spacecraft_server'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=spacecraft_server",
+                    "--package=spacecraft_server"
+                ],
+                "filter": {
+                    "name": "spacecraft_server",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'wasm_spacecraft_client'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=wasm_spacecraft_client"
+                ],
+                "filter": {
+                    "name": "wasm_spacecraft_client",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'wasm_spacecraft_client'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=wasm_spacecraft_client",
+                    "--package=wasm_spacecraft_client"
+                ],
+                "filter": {
+                    "name": "wasm_spacecraft_client",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'wasm_spacecraft_client'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=wasm_spacecraft_client",
+                    "--package=wasm_spacecraft_client"
+                ],
+                "filter": {
+                    "name": "wasm_spacecraft_client",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'ellipsoid_spacecraft_client'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=ellipsoid_spacecraft_client"
+                ],
+                "filter": {
+                    "name": "ellipsoid_spacecraft_client",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "~/Code/spacecraft/ellipsoid-client/"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'ellipsoid_spacecraft_client'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=ellipsoid_spacecraft_client",
+                    "--package=ellipsoid_spacecraft_client"
+                ],
+                "filter": {
+                    "name": "ellipsoid_spacecraft_client",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "~/Code/spacecraft/ellipsoid-client/"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'ellipsoid_spacecraft_client'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=ellipsoid_spacecraft_client",
+                    "--package=ellipsoid_spacecraft_client"
+                ],
+                "filter": {
+                    "name": "ellipsoid_spacecraft_client",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "~/Code/spacecraft/ellipsoid-client/"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'spacecraft'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=spacecraft",
+                    "--package=spacecraft"
+                ],
+                "filter": {
+                    "name": "spacecraft",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'spacecraft'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=spacecraft",
+                    "--package=spacecraft"
+                ],
+                "filter": {
+                    "name": "spacecraft",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
