@@ -1,13 +1,9 @@
 
 
-use self::{
-    particles::{ParticleSystem, ShrinkingCircle},
-};
+use self::particles::{ParticleSystem, ShrinkingCircle};
 
 use super::*;
 
-#[cfg(not(target_arch = "wasm32"))]
-mod controller_ffi;
 mod controller_select;
 
 use controller_select::Controller;
@@ -15,7 +11,6 @@ use controller_select::Controller;
 mod camera;
 use camera::Camera;
 
-mod background_star;
 mod particles;
 mod sounds;
 
@@ -26,10 +21,9 @@ use sounds::SoundManager;
 mod controller_wasm;
 #[cfg(target_arch = "wasm32")]
 use controller_wasm::Controller;
-use futures_util::FutureExt;
 use log::warn;
 
-use rodio::{OutputStream};
+use rodio::OutputStream;
 
 const FRIENDLY_COLOR: Color = Color::from_rgb(0. / 255., 186. / 255., 130. / 255.);
 const ENEMY_COLOR: Color = Color::from_rgb(186. / 255., 0. / 255., 50. / 255.);
@@ -115,8 +109,6 @@ struct AppIntervals {
 
 #[derive(Default)]
 struct EguiFields {
-    server_addr: String,
-    computer_path: String,
     computer_file_dialog: Option<FileDialog>,
 }
 
@@ -264,8 +256,6 @@ impl App<Txts> for SpacecraftApp {
 }
 
 impl SpacecraftApp {
-    async fn connect(&mut self, _server_addr: String) {}
-
     fn update_main(&mut self, _dt: f32) {
         let user = self.user();
         let mut game = self.game.write().unwrap();

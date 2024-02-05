@@ -74,7 +74,7 @@ fn handle_server_response(
             error!("Messages are getting ignored (sending too fast)!");
         }
         ServerResponse::SyncClock(remote_clock) => {
-            sync_response_sender.send(ServerResponse::SyncClock(remote_clock));
+            sync_response_sender.send(ServerResponse::SyncClock(remote_clock)).unwrap();
         }
         _ => (),
     }
