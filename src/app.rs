@@ -1,7 +1,6 @@
-use std::{path::Path, sync::mpsc};
+
 
 use self::{
-    background_star::BackgroundStar,
     particles::{ParticleSystem, ShrinkingCircle},
 };
 
@@ -30,7 +29,7 @@ use controller_wasm::Controller;
 use futures_util::FutureExt;
 use log::warn;
 
-use rodio::{OutputStream, OutputStreamHandle};
+use rodio::{OutputStream};
 
 const FRIENDLY_COLOR: Color = Color::from_rgb(0. / 255., 186. / 255., 130. / 255.);
 const ENEMY_COLOR: Color = Color::from_rgb(186. / 255., 0. / 255., 50. / 255.);
@@ -146,7 +145,7 @@ impl App<Txts> for SpacecraftApp {
 
         let server_addr = std::env::var("SERVER_ADDR").unwrap_or("ws://0.0.0.0:39453".to_string());
 
-        let (_audio_stream, audio_stream_handle) = OutputStream::try_default().unwrap();
+        let (_audio_stream, _audio_stream_handle) = OutputStream::try_default().unwrap();
 
         let mut network_connection =
             NetworkConnection::start(server_addr, game.clone(), user.clone())
@@ -265,7 +264,7 @@ impl App<Txts> for SpacecraftApp {
 }
 
 impl SpacecraftApp {
-    async fn connect(&mut self, server_addr: String) {}
+    async fn connect(&mut self, _server_addr: String) {}
 
     fn update_main(&mut self, _dt: f32) {
         let user = self.user();
@@ -358,7 +357,7 @@ impl SpacecraftApp {
             //     .min(1.);
 
             let zoom_eff = 1. / (-self.camera.mp().log2());
-            let dist_eff = (1. - distance.powi(2) / 100_000. / (-self.camera.mp().log2()));
+            let dist_eff = 1. - distance.powi(2) / 100_000. / (-self.camera.mp().log2());
             let volume = zoom_eff * dist_eff;
             let volume = volume.max(0.).min(1.);
             self.sound_manager.play(sound, volume);

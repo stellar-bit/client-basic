@@ -21,7 +21,7 @@ impl DesktopNetworkClient {
     ) -> Result<Self, NetworkError> {
         let ws_stream = connect_async(server_addr)
             .await
-            .map_err(|e| NetworkError::WebsocketTrouble)?
+            .map_err(|_e| NetworkError::WebsocketTrouble)?
             .0;
         let (ws_sender, mut ws_receiver) = ws_stream.split();
         let (sync_response_sender, sync_response_receiver) = mpsc::channel();
@@ -107,12 +107,12 @@ impl DesktopNetworkClient {
                 self.ws_sender
                     .feed(Message::Binary(serialize_bytes(&msg).unwrap()))
                     .await
-                    .map_err(|e| NetworkError::WebsocketTrouble)?;
+                    .map_err(|_e| NetworkError::WebsocketTrouble)?;
             }
             self.ws_sender
                 .flush()
                 .await
-                .map_err(|e| NetworkError::WebsocketTrouble)?;
+                .map_err(|_e| NetworkError::WebsocketTrouble)?;
             Ok::<(), NetworkError>(())
         })())
     }

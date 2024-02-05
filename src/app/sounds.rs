@@ -1,5 +1,5 @@
-use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink, Source};
-use std::{collections::HashMap, fs::File, io::Result};
+use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
+use std::{collections::HashMap, io::Result};
 
 pub struct SoundManager {
     stream: OutputStream,
