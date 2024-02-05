@@ -1,5 +1,5 @@
 [package]
-name = "ellipsoid_spacecraft_client"
+name = "stellar-bit-client-basic"
 version = "0.1.0"
 edition = "2021"
 

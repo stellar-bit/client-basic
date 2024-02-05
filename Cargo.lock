@@ -741,29 +741,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ellipsoid_spacecraft_client"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cfg-if",
- "dlopen",
- "dlopen_derive",
- "ellipsoid",
- "futures",
- "futures-util",
- "getrandom",
- "log",
- "rand",
- "rodio",
- "stellar-bit-core",
- "strum",
- "tokio",
- "tokio-tungstenite",
- "wasm-bindgen",
- "wasm-bindgen-futures",
-]
-
-[[package]]
 name = "emath"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2362,6 +2339,29 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "stellar-bit-client-basic"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cfg-if",
+ "dlopen",
+ "dlopen_derive",
+ "ellipsoid",
+ "futures",
+ "futures-util",
+ "getrandom",
+ "log",
+ "rand",
+ "rodio",
+ "stellar-bit-core",
+ "strum",
+ "tokio",
+ "tokio-tungstenite",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
 
 [[package]]
 name = "stellar-bit-core"
