@@ -127,6 +127,7 @@ pub struct SpacecraftApp {
     particle_system: ParticleSystem,
     egui_fields: EguiFields,
     sound_manager: SoundManager,
+    shapes: Vec<Shape<Txts>>
 }
 
 impl App<Txts> for SpacecraftApp {
@@ -164,13 +165,14 @@ impl App<Txts> for SpacecraftApp {
             controller: Controller::new(),
             follow_target: None,
             mouse_position: vec2(0.0, 0.0),
-            camera: Camera::new(-10.),
+            camera: Camera::new(-10., 1.0),
             particle_system: ParticleSystem::new(),
             graphics,
             network_msgs: vec![],
             right_mouse_pressed: false,
             egui_fields: EguiFields::default(),
             sound_manager: SoundManager::new(),
+            shapes: vec![]
         }
     }
 
@@ -195,13 +197,14 @@ impl App<Txts> for SpacecraftApp {
     }
 
     fn draw(&mut self) {
-        let camera_gtransform =
-            GTransform::from_inflation(self.camera.mp()).translate(-self.camera.position());
-
         self.draw_background();
-        self.draw_game_objects(camera_gtransform);
-        self.draw_particles(camera_gtransform);
+        self.draw_game_objects();
+        self.draw_particles();
         self.draw_egui();
+
+        for shape in std::mem::take(&mut self.shapes) {
+            self.graphics.add_geometry(shape.apply(GTransform::from_translation(-self.camera.position())).apply(GTransform::from_scale(self.camera.mp())).into());
+        }
     }
 
     fn input(&mut self, event: &WindowEvent) -> bool {
@@ -289,6 +292,9 @@ impl SpacecraftApp {
     fn update_camera(&mut self) {
         let game = self.game.read().unwrap();
 
+        let win_size = self.graphics.window().inner_size();
+        self.camera.win_ratio = win_size.height as f32 / win_size.width as f32;
+
         if let Some(follow_target) = self.follow_target {
             if let Some(game_object) = game.game_objects.get(&follow_target) {
                 self.camera.center = game_object.body().position;
@@ -346,8 +352,8 @@ impl SpacecraftApp {
             //     .max(0.)
             //     .min(1.);
 
-            let zoom_eff = 1. / (-self.camera.mp().log2());
-            let dist_eff = 1. - distance.powi(2) / 100_000. / (-self.camera.mp().log2());
+            let zoom_eff = 1. / (-self.camera.mp().y.log2());
+            let dist_eff = 1. - distance.powi(2) / 100_000. / (-self.camera.mp().y.log2());
             let volume = zoom_eff * dist_eff;
             let volume = volume.max(0.).min(1.);
             self.sound_manager.play(sound, volume);
@@ -368,34 +374,30 @@ impl SpacecraftApp {
         //     let star_gt = GTransform::from_translation(pos).inflate(star.radius * size_mp);
         //     let star_shape = Shape::from_circle(5).apply(star_gt).set_color(Color::from_rgba(0.9, 0.9, 1., 0.1)).set_z(BACKGROUND_Z-0.001);
 
-        //     self.graphics.add_geometry(star_shape.into());
+        //     self.shapes.push(star_shape.into());
         // }
     }
 
-    fn draw_game_objects(&mut self, camera_gtransform: GTransform) {
+    fn draw_game_objects(&mut self) {
         let user = self.user();
         let game = self.game.read().unwrap();
 
         for asteroid in game.asteroids() {
-            let gtransform = camera_gtransform
-                .translate(asteroid.body.position)
+            let gtransform = GTransform::from_translation(asteroid.body.position)
                 .rotate(asteroid.body.rotation);
 
-            self.graphics
-                .add_geometry(asteroid.shape().apply(gtransform).set_z(ASTEROID_Z).into());
-            self.graphics.add_geometry(
+            self.shapes.push(asteroid.shape().apply(gtransform).set_z(ASTEROID_Z));
+            self.shapes.push(
                 asteroid
                     .shape()
-                    .apply(gtransform.inflate_fixed(0.1 * self.camera.mp()))
+                    .apply(gtransform.inflate(0.1))
                     .set_color(Color::from_rgb(0.05, 0.05, 0.05))
                     .reset_texture()
                     .set_z(OUTLINE_Z)
-                    .into(),
             );
         }
         for spacecraft in game.spacecrafts() {
-            let spacecraft_gtransform = camera_gtransform
-                .translate(spacecraft.body.position)
+            let spacecraft_gtransform = GTransform::from_translation(spacecraft.body.position)
                 .rotate(spacecraft.body.rotation)
                 .translate(-spacecraft.center_of_mass);
 
@@ -446,19 +448,19 @@ impl SpacecraftApp {
                         SPACECRAFT_Z - 0.01
                     });
 
-                self.graphics.add_geometry(component_shape.into());
+                self.shapes.push(component_shape);
                 if component.body().top().is_none() {
                     let component_outline = Shape::from_square()
                         .apply(outline_gtransform)
                         .set_color(outline_color)
                         .set_z(OUTLINE_Z)
                         .reset_texture();
-                    self.graphics.add_geometry(component_outline.into());
+                    self.shapes.push(component_outline);
                 }
             }
         }
         for star_base in game.star_bases() {
-            let gtransform = camera_gtransform.translate(star_base.body.position);
+            let gtransform = GTransform::from_translation(star_base.body.position);
 
             let outline_color = if let User::Player(id) = user {
                 if id == star_base.owner {
@@ -470,44 +472,41 @@ impl SpacecraftApp {
                 ENEMY_COLOR
             };
 
-            self.graphics.add_geometry(
+            self.shapes.push(
                 star_base
                     .shape()
                     .apply(gtransform)
                     .set_z(STAR_BASE_Z)
-                    .into(),
             );
-            self.graphics.add_geometry(
+            self.shapes.push(
                 star_base
                     .shape()
-                    .apply(gtransform.inflate_fixed(0.05 * self.camera.mp()))
+                    .apply(gtransform.inflate(0.05))
                     .set_z(OUTLINE_Z)
                     .reset_texture()
                     .set_color(outline_color)
-                    .into(),
             )
         }
 
         for projectile in game.projectiles() {
-            let gtransform = camera_gtransform
-                .translate(projectile.body.position)
+            let gtransform = GTransform::from_translation(projectile.body.position)
                 .rotate(projectile.body.rotation)
                 .stretch(projectile.size);
 
             let shape = projectile.shape().set_z(PROJECTILE_Z).apply(gtransform);
 
-            self.graphics.add_geometry(shape.into());
+            self.shapes.push(shape);
         }
 
         // for game_object in game.game_objects.values() {
         //     let collider = game_object.body().bounds.clone();
         //     let gtransform = GTransform::from_translation(game_object.body().position).rotate(game_object.body().rotation);
 
-        //     self.graphics.add_geometry(Shape::new(collider).apply(gtransform).apply(camera_gtransform).set_color(Color::GREEN).into());
+        //     self.shapes.push(Shape::new(collider).apply(gtransform).apply(camera_gtransform).set_color(Color::GREEN).into());
         // }
     }
 
-    fn draw_particles(&mut self, camera_gtransform: GTransform) {
+    fn draw_particles(&mut self) {
         let game = self.game.read().unwrap();
         for spacecraft in game.spacecrafts() {
             for component in spacecraft.components.values() {
@@ -544,11 +543,9 @@ impl SpacecraftApp {
         }
 
         for particle_shape in self.particle_system.draw() {
-            self.graphics.add_geometry(
+            self.shapes.push(
                 particle_shape
-                    .apply(camera_gtransform)
                     .set_z(PARTICLES_Z)
-                    .into(),
             );
         }
     }
