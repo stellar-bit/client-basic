@@ -127,7 +127,7 @@ pub struct SpacecraftApp {
     particle_system: ParticleSystem,
     egui_fields: EguiFields,
     sound_manager: SoundManager,
-    shapes: Vec<Shape<Txts>>
+    physical_shapes: Vec<Shape<Txts>>
 }
 
 impl App<Txts> for SpacecraftApp {
@@ -172,7 +172,7 @@ impl App<Txts> for SpacecraftApp {
             right_mouse_pressed: false,
             egui_fields: EguiFields::default(),
             sound_manager: SoundManager::new(),
-            shapes: vec![]
+            physical_shapes: vec![]
         }
     }
 
@@ -202,7 +202,7 @@ impl App<Txts> for SpacecraftApp {
         self.draw_particles();
         self.draw_egui();
 
-        for shape in std::mem::take(&mut self.shapes) {
+        for shape in std::mem::take(&mut self.physical_shapes) {
             self.graphics.add_geometry(shape.apply(GTransform::from_translation(-self.camera.position())).apply(GTransform::from_scale(self.camera.mp())).into());
         }
     }
@@ -386,11 +386,11 @@ impl SpacecraftApp {
             let gtransform = GTransform::from_translation(asteroid.body.position)
                 .rotate(asteroid.body.rotation);
 
-            self.shapes.push(asteroid.shape().apply(gtransform).set_z(ASTEROID_Z));
-            self.shapes.push(
+            self.physical_shapes.push(asteroid.shape().apply(gtransform).set_z(ASTEROID_Z));
+            self.physical_shapes.push(
                 asteroid
                     .shape()
-                    .apply(gtransform.inflate(0.1))
+                    .apply(gtransform.inflate_fixed(0.1))
                     .set_color(Color::from_rgb(0.05, 0.05, 0.05))
                     .reset_texture()
                     .set_z(OUTLINE_Z)
@@ -448,14 +448,14 @@ impl SpacecraftApp {
                         SPACECRAFT_Z - 0.01
                     });
 
-                self.shapes.push(component_shape);
+                self.physical_shapes.push(component_shape);
                 if component.body().top().is_none() {
                     let component_outline = Shape::from_square()
                         .apply(outline_gtransform)
                         .set_color(outline_color)
                         .set_z(OUTLINE_Z)
                         .reset_texture();
-                    self.shapes.push(component_outline);
+                    self.physical_shapes.push(component_outline);
                 }
             }
         }
@@ -472,16 +472,16 @@ impl SpacecraftApp {
                 ENEMY_COLOR
             };
 
-            self.shapes.push(
+            self.physical_shapes.push(
                 star_base
                     .shape()
                     .apply(gtransform)
                     .set_z(STAR_BASE_Z)
             );
-            self.shapes.push(
+            self.physical_shapes.push(
                 star_base
                     .shape()
-                    .apply(gtransform.inflate(0.05))
+                    .apply(gtransform.inflate_fixed(0.05))
                     .set_z(OUTLINE_Z)
                     .reset_texture()
                     .set_color(outline_color)
@@ -495,7 +495,7 @@ impl SpacecraftApp {
 
             let shape = projectile.shape().set_z(PROJECTILE_Z).apply(gtransform);
 
-            self.shapes.push(shape);
+            self.physical_shapes.push(shape);
         }
 
         // for game_object in game.game_objects.values() {
@@ -543,7 +543,7 @@ impl SpacecraftApp {
         }
 
         for particle_shape in self.particle_system.draw() {
-            self.shapes.push(
+            self.physical_shapes.push(
                 particle_shape
                     .set_z(PARTICLES_Z)
             );
