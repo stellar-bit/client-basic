@@ -600,13 +600,14 @@ impl SpacecraftApp {
         egui::Window::new("Player info").show(&self.graphics.egui_platform.context(), |ui| {
             match user {
                 User::Server => (),
-                User::Player(player) => {
-                    ui.label(format!("Materials: {:?}", game.players[&player].materials));
+                User::Player(player_id) => {
+                    ui.label(format!("Id: {:?}", player_id));
+                    ui.label(format!("Materials: {:?}", game.players[&player_id].materials));
                     let mut game_objects =
                         game.game_objects.clone().into_iter().collect::<Vec<_>>();
                     game_objects.sort_by_key(|x| x.0);
                     for (id, game_object) in game_objects {
-                        if game_object.owner() == Some(player) {
+                        if game_object.owner() == Some(player_id) {
                             let game_object_text: &'static str = game_object.into();
                             if ui
                                 .button(format!("{} [{}]", game_object_text, id))
