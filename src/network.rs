@@ -64,7 +64,9 @@ fn handle_server_response(
                         return;
                     }
                 }
-                game.execute_cmd(cmd_user, cmd).unwrap();
+                if let Err(e) = game.execute_cmd(cmd_user, cmd.clone()) {
+                    eprintln!("Gmae cmd from server {:?} couldn't execute: {:?}", cmd, e);
+                }
             });
         }
         ServerResponse::SetUser(new_user) => {
