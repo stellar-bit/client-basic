@@ -20,6 +20,8 @@ use ellipsoid::prelude::egui_file::FileDialog;
 use rand::random;
 use sounds::SoundManager;
 
+use serde::{Serialize, Deserialize};
+
 #[cfg(target_arch = "wasm32")]
 mod controller_wasm;
 #[cfg(target_arch = "wasm32")]
@@ -128,6 +130,12 @@ impl Default for EguiFields {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct Credentials {
+    public_token: u64,
+    private_token: u64
+}
+
 pub struct SpacecraftApp {
     pub graphics: Graphics<Txts>,
     pub network_msgs: Vec<ClientRequest>,
@@ -143,30 +151,49 @@ pub struct SpacecraftApp {
     particle_system: ParticleSystem,
     egui_fields: EguiFields,
     sound_manager: SoundManager,
-    physical_shapes: Vec<Shape<Txts>>
+    physical_shapes: Vec<Shape<Txts>>,
+    credentials: Credentials
+}
+
+
+impl Default for Credentials {
+    fn default() -> Self {
+        Self {
+            public_token: random(),
+            private_token: random()
+        }
+    }
 }
 
 impl App<Txts> for SpacecraftApp {
     async fn new(window: winit::window::Window) -> Self {
         let graphics = Graphics::new(window).await;
-        let game: Arc<RwLock<Game>> = Arc::new(RwLock::new(Game::new()));
-        let user: Arc<RwLock<User>> = Arc::new(RwLock::new(User::Spectator));
 
-        let server_addr = std::env::var("SERVER_ADDR").unwrap_or("ws://0.0.0.0:39453".to_string());
+        let credentials = if let Ok(credentials_raw) = &std::fs::read_to_string("credentials.json") {
+            serde_json::from_str::<Credentials>(&credentials_raw).unwrap()
+        }
+        else {
+            let result = Credentials::default();
+            std::fs::write("credentials.json", serde_json::to_string_pretty(&result).unwrap()).unwrap();
+            result
+        };
+
+        let mut init_game = Game::new();
+        init_game.execute_cmd(User::Server, GameCmd::AddPlayer(credentials.public_token)).unwrap();
+        init_game.execute_cmd(User::Server, GameCmd::SpawnStarBase(credentials.public_token, Vec2::ZERO, Vec2::ZERO)).unwrap();
+        init_game.execute_cmd(User::Server, GameCmd::GiveMaterials(credentials.public_token, vec![(Material::Iron, 2000.),
+                                (Material::Nickel, 2000.),
+                                (Material::Silicates, 2000.),
+                                (Material::Copper, 2000.),
+                                (Material::Carbon, 2000.),].into_iter().collect())).unwrap();
+        for _ in 0..300 {
+            init_game.execute_cmd(User::Server, GameCmd::SpawnRandomAsteroid(Vec2::random_unit_circle()*1000., Vec2::random_unit_circle()*10.)).unwrap();
+        }
+
+        let game: Arc<RwLock<Game>> = Arc::new(RwLock::new(init_game));
+        let user: Arc<RwLock<User>> = Arc::new(RwLock::new(User::Player(credentials.public_token)));
 
         let (_audio_stream, _audio_stream_handle) = OutputStream::try_default().unwrap();
-
-
-        // let mut network_connection =
-        //     NetworkConnection::start(server_addr, game.clone(), user.clone())
-        //         .unwrap();
-
-        // network_connection
-        //     .send(ClientRequest::Join(rand::random(), rand::random()))
-        //     .unwrap();
-        // network_connection
-        //     .send(ClientRequest::FullGameSync)
-        //     .unwrap();
 
         Self {
             game,
@@ -186,7 +213,8 @@ impl App<Txts> for SpacecraftApp {
             right_mouse_pressed: false,
             egui_fields: EguiFields::default(),
             sound_manager: SoundManager::new(),
-            physical_shapes: vec![]
+            physical_shapes: vec![],
+            credentials
         }
     }
 
@@ -659,7 +687,7 @@ impl SpacecraftApp {
                     let network_connection_res = NetworkConnection::start(self.egui_fields.server_addr.clone(), self.game.clone(), self.user.clone());
                     match network_connection_res {
                         Ok(mut network_connection) => {
-                            network_connection.send(ClientRequest::Join(random(), random())).unwrap();
+                            network_connection.send(ClientRequest::Join(self.credentials.public_token, self.credentials.private_token)).unwrap();
                             network_connection.send(ClientRequest::FullGameSync).unwrap();
                             self.network_connection = Some(network_connection);
                             println!("Successfully connected to server {:?}!", self.egui_fields.server_addr);

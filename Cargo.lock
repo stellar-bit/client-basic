@@ -2355,6 +2355,7 @@ dependencies = [
  "log",
  "rand",
  "rodio",
+ "serde",
  "stellar-bit-core",
  "strum",
  "tokio",
