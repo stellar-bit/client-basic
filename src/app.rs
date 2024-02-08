@@ -1,5 +1,7 @@
 
 
+use std::path::Path;
+
 use self::particles::{ParticleSystem, ShrinkingCircle};
 
 use super::*;
@@ -15,6 +17,7 @@ mod particles;
 mod sounds;
 
 use ellipsoid::prelude::egui_file::FileDialog;
+use rand::random;
 use sounds::SoundManager;
 
 #[cfg(target_arch = "wasm32")]
@@ -107,15 +110,28 @@ struct AppIntervals {
     game_sync: Interval,
 }
 
-#[derive(Default)]
 struct EguiFields {
     computer_file_dialog: Option<FileDialog>,
+    world_file_dialog: Option<FileDialog>,
+    server_addr: String,
+    world_name: String,
+}
+
+impl Default for EguiFields {
+    fn default() -> Self {
+        Self {
+            computer_file_dialog: None,
+            world_file_dialog: None,
+            server_addr: "ws://0.0.0.0:39453".into(),
+            world_name: format!("world_{}", random::<u32>())
+        }
+    }
 }
 
 pub struct SpacecraftApp {
     pub graphics: Graphics<Txts>,
     pub network_msgs: Vec<ClientRequest>,
-    network_connection: NetworkConnection,
+    network_connection: Option<NetworkConnection>,
     game: Arc<RwLock<Game>>,
     user: Arc<RwLock<User>>,
     time_intervals: AppIntervals,
@@ -140,24 +156,22 @@ impl App<Txts> for SpacecraftApp {
 
         let (_audio_stream, _audio_stream_handle) = OutputStream::try_default().unwrap();
 
-        let mut network_connection =
-            NetworkConnection::start(server_addr, game.clone(), user.clone())
-                .await
-                .unwrap();
 
-        network_connection
-            .send(ClientRequest::Join(rand::random(), rand::random()))
-            .await
-            .unwrap();
-        network_connection
-            .send(ClientRequest::FullGameSync)
-            .await
-            .unwrap();
+        // let mut network_connection =
+        //     NetworkConnection::start(server_addr, game.clone(), user.clone())
+        //         .unwrap();
+
+        // network_connection
+        //     .send(ClientRequest::Join(rand::random(), rand::random()))
+        //     .unwrap();
+        // network_connection
+        //     .send(ClientRequest::FullGameSync)
+        //     .unwrap();
 
         Self {
             game,
             user,
-            network_connection,
+            network_connection: None,
             time_intervals: AppIntervals {
                 cmds_sync: Interval::new(time::Duration::from_millis(300)),
                 game_sync: Interval::new(time::Duration::from_millis(3000)),
@@ -314,8 +328,9 @@ impl SpacecraftApp {
 
     fn update_network(&mut self) {
         let requests = std::mem::take(&mut self.network_msgs);
-        if !requests.is_empty() {
-            self.network_connection.send_multiple(requests).unwrap();
+        if let Some(network_connection) = &mut self.network_connection {
+            // TODO: possible error cuz no req empty check
+            network_connection.send_multiple(requests).unwrap();
         }
     }
 
@@ -552,7 +567,7 @@ impl SpacecraftApp {
 
     fn draw_egui(&mut self) {
         let user = self.user();
-        let game = self.game.read().unwrap();
+        let mut game = self.game.write().unwrap();
 
         if let Some(follow_target) = self.follow_target {
             let game_object = game.game_objects.get(&follow_target).unwrap();
@@ -628,6 +643,61 @@ impl SpacecraftApp {
         egui::Window::new("Server log").show(&self.graphics.egui_platform.context(), |ui| {
             for msg in &game.log {
                 ui.label(msg);
+            }
+        });
+
+        egui::Window::new("Network connection").show(&self.graphics.egui_platform.context(), |ui| {
+            if let Some(network_connection) = &self.network_connection {
+                ui.label(format!("{}", network_connection.server_addr));
+                if ui.button("Disconnect").clicked() {
+                    self.network_connection = None;
+                }
+            }
+            else {
+                ui.text_edit_singleline(&mut self.egui_fields.server_addr);
+                if ui.button("Connect").clicked() {
+                    let network_connection_res = NetworkConnection::start(self.egui_fields.server_addr.clone(), self.game.clone(), self.user.clone());
+                    match network_connection_res {
+                        Ok(mut network_connection) => {
+                            network_connection.send(ClientRequest::Join(random(), random())).unwrap();
+                            network_connection.send(ClientRequest::FullGameSync).unwrap();
+                            self.network_connection = Some(network_connection);
+                            println!("Successfully connected to server {:?}!", self.egui_fields.server_addr);
+                        }
+                        Err(e) => eprintln!("Error when trying to connect to server {:?}! ({:?})", self.egui_fields.server_addr, e)
+                    }
+                }
+            }
+        });
+
+        egui::Window::new("Worlds").show(&self.graphics.egui_platform.context(), |ui| {
+            ui.horizontal(|ui| {
+                ui.text_edit_singleline(&mut self.egui_fields.world_name);
+                if ui.button("Save").clicked() {
+                    let path = Path::new("worlds/");
+                    std::fs::create_dir_all(path).unwrap();
+                    let world_json = serde_json::to_string(&*game).unwrap();
+                    std::fs::write(path.join(&self.egui_fields.world_name), world_json).unwrap();
+                }
+            });
+            if self.network_connection.is_none() {
+                if ui.button("Load").clicked() {
+                    let mut dialog = FileDialog::open_file(None);
+                    dialog.open();
+                    self.egui_fields.world_file_dialog = Some(dialog);
+                }
+                if let Some(dialog) = &mut self.egui_fields.world_file_dialog {
+                    if dialog.show(&self.graphics.egui_platform.context()).selected() {
+                        if let Some(path) = dialog.path() {
+                            let game_json = std::fs::read_to_string(path).unwrap();
+                            let game_res = serde_json::from_str::<Game>(&game_json);
+                            match game_res {
+                                Ok(game_parsed) => {*game = game_parsed;}
+                                Err(e) => eprintln!("Error when parsing game file at {:?} ({:?})!", path, e)
+                            }
+                        }
+                    }
+                }
             }
         });
 

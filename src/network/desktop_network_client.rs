@@ -14,47 +14,49 @@ pub struct DesktopNetworkClient {
 }
 
 impl DesktopNetworkClient {
-    pub async fn connect(
+    pub fn connect(
         server_addr: &str,
         game: Arc<RwLock<Game>>,
         user: Arc<RwLock<User>>,
     ) -> Result<Self, NetworkError> {
-        let ws_stream = connect_async(server_addr)
-            .await
-            .map_err(|_e| NetworkError::WebsocketTrouble)?
-            .0;
-        let (ws_sender, mut ws_receiver) = ws_stream.split();
-        let (sync_response_sender, sync_response_receiver) = mpsc::channel();
+        let result = futures::executor::block_on((|| async move {
+            let ws_stream = connect_async(server_addr)
+                .await
+                .map_err(|_e| NetworkError::WebsocketTrouble)?
+                .0;
+            let (ws_sender, mut ws_receiver) = ws_stream.split();
+            let (sync_response_sender, sync_response_receiver) = mpsc::channel();
 
-        let time_delay = Arc::new(RwLock::new(0));
+            let time_delay = Arc::new(RwLock::new(0));
 
-        let receive_task = {
-            let game = game.clone();
-            let time_delay = time_delay.clone();
-            let user = user.clone();
-            tokio::task::spawn(async move {
-                while let Some(msg) = ws_receiver.next().await {
-                    let msg = msg.unwrap();
-                    let response: ServerResponse = deserialize_bytes(&msg.into_data()).unwrap();
-                    handle_server_response(
-                        response,
-                        game.clone(),
-                        time_delay.clone(),
-                        user.clone(),
-                        &sync_response_sender,
-                    );
-                }
+            let receive_task = {
+                let game = game.clone();
+                let time_delay = time_delay.clone();
+                let user = user.clone();
+                tokio::task::spawn(async move {
+                    while let Some(msg) = ws_receiver.next().await {
+                        let msg = msg.unwrap();
+                        let response: ServerResponse = deserialize_bytes(&msg.into_data()).unwrap();
+                        handle_server_response(
+                            response,
+                            game.clone(),
+                            time_delay.clone(),
+                            user.clone(),
+                            &sync_response_sender,
+                        );
+                    }
+                })
+            };
+            Ok(Self {
+                ws_sender,
+                receive_task,
+                sync_response_receiver,
+                time_delay,
             })
-        };
+        })())?;
 
-        let mut result = Self {
-            ws_sender,
-            receive_task,
-            sync_response_receiver,
-            time_delay,
-        };
 
-        result.sync_clock();
+        // result.sync_clock();
 
         Ok(result)
     }

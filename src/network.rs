@@ -20,12 +20,12 @@ pub struct NetworkConnection {
 }
 
 impl NetworkConnection {
-    pub async fn start(
+    pub fn start(
         server_addr: String,
         game: Arc<RwLock<Game>>,
         user: Arc<RwLock<User>>,
     ) -> Result<Self, NetworkError> {
-        let client = NetworkClient::connect(&server_addr, game.clone(), user).await?;
+        let client = NetworkClient::connect(&server_addr, game.clone(), user)?;
         Ok(Self {
             client,
             server_addr,
@@ -34,7 +34,7 @@ impl NetworkConnection {
     pub fn send_multiple(&mut self, msgs: Vec<ClientRequest>) -> Result<(), NetworkError> {
         self.client.send_multiple(msgs)
     }
-    pub async fn send(&mut self, msg: ClientRequest) -> Result<(), NetworkError> {
+    pub fn send(&mut self, msg: ClientRequest) -> Result<(), NetworkError> {
         self.client.send(msg)
     }
 }
