@@ -17,6 +17,7 @@ mod particles;
 mod sounds;
 
 use ellipsoid::prelude::egui_file::FileDialog;
+use ellipsoid::prelude::Textures;
 use rand::random;
 use sounds::SoundManager;
 
@@ -29,6 +30,8 @@ use controller_wasm::Controller;
 use log::warn;
 
 use rodio::OutputStream;
+use strum::IntoEnumIterator;
+use enum_bytes::{enum_bytes};
 
 const FRIENDLY_COLOR: Color = Color::from_rgb(0. / 255., 186. / 255., 130. / 255.);
 const ENEMY_COLOR: Color = Color::from_rgb(186. / 255., 0. / 255., 50. / 255.);
@@ -41,10 +44,9 @@ const BACKGROUND_Z: f32 = 0.9;
 const PARTICLES_Z: f32 = 0.1;
 const OUTLINE_Z: f32 = 0.7;
 
-#[repr(u32)]
-#[derive(Default, Clone, Copy, strum::Display, strum::EnumIter, Debug)]
+#[derive(Default, Clone, strum::EnumIter, Debug, Textures)]
 #[strum(serialize_all = "snake_case")]
-pub enum SpacecraftTextures {
+pub enum Txts {
     #[default]
     White,
     BlockComponent,
@@ -60,15 +62,13 @@ pub enum SpacecraftTextures {
     StarryNight,
 }
 
-impl Into<u32> for SpacecraftTextures {
-    fn into(self) -> u32 {
-        self as u32
-    }
+#[enum_bytes(assets/sounds/, wav)]
+pub enum Snds {
+    LaserFired,
+    SpacecraftDeployed,
+    StarBaseHit,
+    LaserHit,
 }
-
-impl Textures for SpacecraftTextures {}
-
-type Txts = SpacecraftTextures;
 
 pub trait Drawable {
     fn shape(&self) -> Shape<Txts>;
@@ -369,16 +369,16 @@ impl SpacecraftApp {
         for event in events {
             sound_sources.push(match event {
                 GameEvent::ProjectileLaunched(projectile) => {
-                    Some((projectile.body.position, "laser_fired"))
+                    Some((projectile.body.position, Snds::LaserFired))
                 }
                 GameEvent::SpacecraftDeployed(spacecraft) => {
-                    Some((spacecraft.body.position, "spacecraft_deployed"))
+                    Some((spacecraft.body.position, Snds::SpacecraftDeployed))
                 }
                 GameEvent::GameObjectDestroyed(destroyed, destroyer) => match destroyer {
-                    GameObject::StarBase(_) => Some((destroyer.body().position, "star_base_hit")),
+                    GameObject::StarBase(_) => Some((destroyer.body().position, Snds::StarBaseHit)),
                     _ => match destroyed {
                         GameObject::Projectile(projectile) => {
-                            Some((projectile.body.position, "laser_hit"))
+                            Some((projectile.body.position, Snds::LaserHit))
                         }
                         _ => None,
                     },
@@ -399,7 +399,7 @@ impl SpacecraftApp {
             let dist_eff = 1. - distance.powi(2) / 100_000. / (-self.camera.mp().y.log2());
             let volume = zoom_eff * dist_eff;
             let volume = volume.max(0.).min(1.);
-            self.sound_manager.play(sound, volume);
+            self.sound_manager.play(sound.into(), volume);
         }
     }
 
@@ -475,11 +475,11 @@ impl SpacecraftApp {
                     .stretch(component.body().scale().as_vec2() + outline_thickness);
 
                 let texture = match component.body().origin {
-                    ComponentType::LaserWeapon => SpacecraftTextures::LaserWeaponComponent,
-                    ComponentType::Central => SpacecraftTextures::BlockComponent,
-                    ComponentType::MissileLauncher => SpacecraftTextures::MissileWeaponComponent,
-                    ComponentType::RaptorEngine => SpacecraftTextures::RaptorEngineComponent,
-                    ComponentType::SteelBlock => SpacecraftTextures::BlockComponent,
+                    ComponentType::LaserWeapon => Txts::LaserWeaponComponent,
+                    ComponentType::Central => Txts::BlockComponent,
+                    ComponentType::MissileLauncher => Txts::MissileWeaponComponent,
+                    ComponentType::RaptorEngine => Txts::RaptorEngineComponent,
+                    ComponentType::SteelBlock => Txts::BlockComponent,
                 };
 
                 let component_shape = Shape::from_square()

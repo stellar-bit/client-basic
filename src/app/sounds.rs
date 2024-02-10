@@ -26,12 +26,7 @@ impl SoundManager {
         Ok(())
     }
 
-    pub fn play(&mut self, sound: &str, volume: f32) {
-        if !self.sound_cache.contains_key(sound) {
-            self.load_sound(sound).unwrap();
-        }
-
-        let sound_data = self.sound_cache.get(sound).unwrap();
+    pub fn play(&mut self, sound_data: Vec<u8>, volume: f32) {
         let cursor = std::io::Cursor::new(sound_data.clone());
         let source = Decoder::new(cursor).unwrap();
 
