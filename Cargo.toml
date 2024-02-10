@@ -1,7 +1,8 @@
 [package]
-name = "stellar-bit-client-basic"
+name = "stellar-bit-client"
 version = "0.1.0"
 edition = "2021"
+include = ["src/**/*", "assets/**/*", "Cargo.toml"]
 
 [dependencies]
 stellar-bit-core = { git="https://github.com/stellar-bit/core" }

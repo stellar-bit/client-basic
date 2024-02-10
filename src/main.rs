@@ -6,6 +6,6 @@ fn main() {
 
     rt.block_on(async {
         // your async code here
-        stellar_bit_client_basic::run().await;
+        stellar_bit_client::run().await;
     });
 }
