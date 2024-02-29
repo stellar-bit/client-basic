@@ -1,6 +1,6 @@
 
 
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
 use self::particles::{ParticleSystem, ShrinkingCircle};
 
@@ -8,6 +8,7 @@ use super::*;
 
 mod controller_select;
 
+use stellar_bit_central_hub_api::{HubAPI, ServerDetails, UserData};
 use controller_select::Controller;
 
 mod camera;
@@ -18,6 +19,7 @@ mod sounds;
 
 use ellipsoid::prelude::egui_file::FileDialog;
 use ellipsoid::prelude::Textures;
+use futures::executor::block_on;
 use rand::random;
 use sounds::SoundManager;
 
@@ -62,7 +64,7 @@ pub enum Txts {
     StarryNight,
 }
 
-#[enum_bytes(assets/sounds/, wav)]
+#[enum_bytes(assets/sounds, wav)]
 pub enum Snds {
     LaserFired,
     SpacecraftDeployed,
@@ -110,6 +112,7 @@ impl Drawable for Projectile {
 struct AppIntervals {
     cmds_sync: Interval,
     game_sync: Interval,
+    hub_servers: Interval
 }
 
 struct EguiFields {
@@ -117,6 +120,11 @@ struct EguiFields {
     world_file_dialog: Option<FileDialog>,
     server_addr: String,
     world_name: String,
+    username: String,
+    password: String,
+    hub_servers: Arc<Mutex<Vec<ServerDetails>>>,
+    access_token: String,
+    user_id: i64
 }
 
 impl Default for EguiFields {
@@ -125,16 +133,25 @@ impl Default for EguiFields {
             computer_file_dialog: None,
             world_file_dialog: None,
             server_addr: "ws://0.0.0.0:39453".into(),
-            world_name: format!("world_{}", random::<u32>())
+            world_name: format!("world_{}", random::<u32>()),
+            username: String::new(),
+            password: String::new(),
+            hub_servers: Arc::new(Mutex::new(vec![])),
+            access_token: String::new(),
+            user_id: 0
         }
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Credentials {
-    public_token: u64,
-    private_token: u64
+fn integer_edit_field(ui: &mut egui::Ui, value: &mut i64) -> egui::Response {
+    let mut tmp_value = format!("{}", value);
+    let res = ui.text_edit_singleline(&mut tmp_value);
+    if let Ok(result) = tmp_value.parse() {
+        *value = result;
+    }
+    res
 }
+
 
 pub struct SpacecraftApp {
     pub graphics: Graphics<Txts>,
@@ -152,36 +169,19 @@ pub struct SpacecraftApp {
     egui_fields: EguiFields,
     sound_manager: SoundManager,
     physical_shapes: Vec<Shape<Txts>>,
-    credentials: Credentials
+    hub_conn: Option<Arc<HubAPI>>
 }
 
-
-impl Default for Credentials {
-    fn default() -> Self {
-        Self {
-            public_token: random(),
-            private_token: random()
-        }
-    }
-}
 
 impl App<Txts> for SpacecraftApp {
     async fn new(window: winit::window::Window) -> Self {
         let graphics = Graphics::new(window).await;
 
-        let credentials = if let Ok(credentials_raw) = &std::fs::read_to_string("credentials.json") {
-            serde_json::from_str::<Credentials>(&credentials_raw).unwrap()
-        }
-        else {
-            let result = Credentials::default();
-            std::fs::write("credentials.json", serde_json::to_string_pretty(&result).unwrap()).unwrap();
-            result
-        };
 
         let mut init_game = Game::new();
-        init_game.execute_cmd(User::Server, GameCmd::AddPlayer(credentials.public_token)).unwrap();
-        init_game.execute_cmd(User::Server, GameCmd::SpawnStarBase(credentials.public_token, Vec2::ZERO, Vec2::ZERO)).unwrap();
-        init_game.execute_cmd(User::Server, GameCmd::GiveMaterials(credentials.public_token, vec![(Material::Iron, 2000.),
+        init_game.execute_cmd(User::Server, GameCmd::AddPlayer(0)).unwrap();
+        init_game.execute_cmd(User::Server, GameCmd::SpawnStarBase(0, Vec2::ZERO, Vec2::ZERO)).unwrap();
+        init_game.execute_cmd(User::Server, GameCmd::GiveMaterials(0, vec![(Material::Iron, 2000.),
                                 (Material::Nickel, 2000.),
                                 (Material::Silicates, 2000.),
                                 (Material::Copper, 2000.),
@@ -191,7 +191,7 @@ impl App<Txts> for SpacecraftApp {
         }
 
         let game: Arc<RwLock<Game>> = Arc::new(RwLock::new(init_game));
-        let user: Arc<RwLock<User>> = Arc::new(RwLock::new(User::Player(credentials.public_token)));
+        let user: Arc<RwLock<User>> = Arc::new(RwLock::new(User::Player(0)));
 
         let (_audio_stream, _audio_stream_handle) = OutputStream::try_default().unwrap();
 
@@ -202,6 +202,7 @@ impl App<Txts> for SpacecraftApp {
             time_intervals: AppIntervals {
                 cmds_sync: Interval::new(time::Duration::from_millis(300)),
                 game_sync: Interval::new(time::Duration::from_millis(3000)),
+                hub_servers: Interval::new_elapsed(time::Duration::from_secs(30))
             },
             controller: Controller::new(),
             follow_target: None,
@@ -214,7 +215,7 @@ impl App<Txts> for SpacecraftApp {
             egui_fields: EguiFields::default(),
             sound_manager: SoundManager::new(),
             physical_shapes: vec![],
-            credentials
+            hub_conn: None,
         }
     }
 
@@ -361,6 +362,7 @@ impl SpacecraftApp {
             network_connection.send_multiple(requests).unwrap();
         }
     }
+
 
     fn process_events(&mut self) {
         let events = std::mem::take(&mut self.game.write().unwrap().events);
@@ -683,17 +685,46 @@ impl SpacecraftApp {
             }
             else {
                 ui.text_edit_singleline(&mut self.egui_fields.server_addr);
-                if ui.button("Connect").clicked() {
+                integer_edit_field(ui, &mut self.egui_fields.user_id);
+                egui::TextEdit::singleline(&mut self.egui_fields.access_token).password(true).show(ui);
+                if ui.button("Join").clicked() {
                     let network_connection_res = NetworkConnection::start(self.egui_fields.server_addr.clone(), self.game.clone(), self.user.clone());
                     match network_connection_res {
                         Ok(mut network_connection) => {
-                            network_connection.send(ClientRequest::Join(self.credentials.public_token, self.credentials.private_token)).unwrap();
+                            network_connection.send(ClientRequest::Join(self.egui_fields.user_id as u64, self.egui_fields.access_token.clone())).unwrap();
                             network_connection.send(ClientRequest::FullGameSync).unwrap();
                             self.network_connection = Some(network_connection);
                             println!("Successfully connected to server {:?}!", self.egui_fields.server_addr);
                         }
                         Err(e) => eprintln!("Error when trying to connect to server {:?}! ({:?})", self.egui_fields.server_addr, e)
                     }
+                }
+                if let Some(hub_conn) = &self.hub_conn {
+                    if self.time_intervals.hub_servers.check() {
+                        let servers_c = self.egui_fields.hub_servers.clone();
+                        let hub_conn_c = hub_conn.clone();
+                        tokio::spawn(async move {
+                            let servers = hub_conn_c.servers().await;
+                            *servers_c.lock().unwrap() = servers;
+                        });
+                    }
+                    egui::CollapsingHeader::new("Public servers").default_open(true).show(ui, |ui| {
+                        let servers = self.egui_fields.hub_servers.lock().unwrap();
+                        for server in servers.iter() {
+                            let button = egui::Button::new(&server.name);
+                            if let Some(addr) = &server.addr {
+                                if ui.add_enabled(true, button).clicked() {
+                                    let server_acc = block_on(hub_conn.access_server(server.id));
+                                    self.egui_fields.user_id = block_on(hub_conn.my_user_data()).id;
+                                    self.egui_fields.server_addr = "ws://".to_string() + &server_acc.server_addr;
+                                    self.egui_fields.access_token = server_acc.access_token;
+                                }
+                            }
+                            else {
+                                ui.add_enabled(false, button);
+                            }
+                        }
+                    });
                 }
             }
         });
@@ -757,6 +788,30 @@ impl SpacecraftApp {
                     .unwrap()
             ));
         });
+
+        egui::Window::new("Central Hub").show(&self.graphics.egui_platform.context(), |ui| {
+            if let Some(hub_conn) = &self.hub_conn {
+                ui.label(format!("Logged in as '{}'", hub_conn.username));
+            }
+            else {
+                ui.label("Username");
+                ui.text_edit_singleline(&mut self.egui_fields.username);
+                ui.label("Password");
+                egui::TextEdit::singleline(&mut self.egui_fields.password).password(true).show(ui);
+                if ui.button("Log In").clicked() {
+                    match block_on(HubAPI::connect(self.egui_fields.username.clone(), self.egui_fields.password.clone())) {
+                        Ok(hub_conn) => {
+                            println!("Successfully connected to central hub!");
+                            self.hub_conn = Some(Arc::new(hub_conn));
+                        }
+                        Err(err) => {
+                            eprintln!("Error when trying to connect to central hub: {:?}", err);
+                        }
+                    }
+                }
+            }
+        });
+
 
         drop(game);
     }
