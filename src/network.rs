@@ -46,6 +46,7 @@ fn handle_server_response(
     user: Arc<RwLock<User>>,
     sync_response_sender: &mpsc::Sender<ServerResponse>,
 ) {
+    println!("Received response from server {:?}", response);
     match response {
         ServerResponse::SyncFullGame(new_game) => {
             let mut game = game.write().unwrap();

@@ -39,29 +39,30 @@ const FRIENDLY_COLOR: Color = Color::from_rgb(0. / 255., 186. / 255., 130. / 255
 const ENEMY_COLOR: Color = Color::from_rgb(186. / 255., 0. / 255., 50. / 255.);
 
 const SPACECRAFT_Z: f32 = 0.2;
+const TOP_COMPONENT_Z: f32 = 0.15;
 const ASTEROID_Z: f32 = 0.3;
 const STAR_BASE_Z: f32 = 0.4;
 const PROJECTILE_Z: f32 = 0.1;
 const BACKGROUND_Z: f32 = 0.9;
 const PARTICLES_Z: f32 = 0.1;
 const OUTLINE_Z: f32 = 0.7;
+const GRAD_Z: f32 = 0.19;
 
 #[derive(Default, Clone, strum::EnumIter, Debug, Textures)]
 #[strum(serialize_all = "snake_case")]
 pub enum Txts {
     #[default]
     White,
-    BlockComponent,
-    BlockComponentWhite,
-    LaserProjectile,
+    CentralBlockComponent,
+    BulletProjectile,
     MissileProjectile,
-    LaserWeaponComponent,
-    LaserWeaponComponentWhite,
+    KineticWeaponComponent,
     MissileWeaponComponent,
     RaptorEngineComponent,
-    RaptorEngineComponentWhite,
     StarBase,
     StarryNight,
+    SteelBlockComponent,
+    CircleGrad
 }
 
 #[enum_bytes(assets/sounds, wav)]
@@ -99,13 +100,17 @@ impl Drawable for Asteroid {
 
 impl Drawable for StarBase {
     fn shape(&self) -> Shape<Txts> {
-        Shape::new(self.body.bounds.clone()).set_color(Color::WHITE)
+        Shape::new(self.body.bounds.clone()).set_color(Color::BLACK)
     }
 }
 
 impl Drawable for Projectile {
     fn shape(&self) -> Shape<Txts> {
-        Shape::from_square_centered().set_texture(Txts::LaserProjectile)
+        let t = match &self.origin {
+            ProjectileType::Bullet => Txts::BulletProjectile,
+            ProjectileType::Missile => Txts::MissileProjectile,
+        };
+        Shape::from_square_centered().set_texture(t)
     }
 }
 
@@ -175,6 +180,7 @@ pub struct SpacecraftApp {
 
 impl App<Txts> for SpacecraftApp {
     async fn new(window: winit::window::Window) -> Self {
+
         let graphics = Graphics::new(window).await;
 
 
@@ -195,10 +201,43 @@ impl App<Txts> for SpacecraftApp {
 
         let (_audio_stream, _audio_stream_handle) = OutputStream::try_default().unwrap();
 
+        let cmd_matches = clap::Command::new("Stellar Bit Client")
+            .version("1.0")
+            .author("Your Name")
+            .about("A client for Stellar Bit")
+            .arg(
+                clap::Arg::new("join")
+                    .long("join")
+                    .value_name("ADDRESS")
+                    .help("This is only for copy-pasting to speed up the proccess of joining a server. The format is \"address access_token user_id\".")
+            )
+            .get_matches();
+
+        let server_access_raw = cmd_matches.get_one::<String>("join");
+
+        let network_connection = server_access_raw.map(|data| {
+            let mut data = data.split_whitespace();
+            let addr = data.next().unwrap();
+            let acc_token = data.next().unwrap();
+            let user_id = data.next().unwrap().parse::<i64>().unwrap();
+
+            
+            let network_connection_res = NetworkConnection::start(addr.into(), game.clone(), user.clone());
+            match network_connection_res {
+                Ok(mut network_connection) => {
+                    network_connection.send(ClientRequest::Join(user_id as u64, acc_token.into())).unwrap();
+                    network_connection.send(ClientRequest::FullGameSync).unwrap();
+                    println!("Successfully connected to server {:?}!", addr);
+                    network_connection
+                }
+                Err(e) => panic!("Error when trying to connect to server {:?}! ({:?})", addr, e)
+            }
+        });
+
         Self {
             game,
             user,
-            network_connection: None,
+            network_connection,
             time_intervals: AppIntervals {
                 cmds_sync: Interval::new(time::Duration::from_millis(300)),
                 game_sync: Interval::new(time::Duration::from_millis(3000)),
@@ -408,7 +447,7 @@ impl SpacecraftApp {
     fn draw_background(&mut self) {
         let background = Shape::from_square_centered()
             .apply(GTransform::from_inflation(2.))
-            .set_color(Color::BLACK)
+            .set_color(Color::WHITE)
             .set_z(BACKGROUND_Z);
 
         self.graphics.add_geometry(background.into());
@@ -436,7 +475,7 @@ impl SpacecraftApp {
                 asteroid
                     .shape()
                     .apply(gtransform.inflate_fixed(0.1))
-                    .set_color(Color::from_rgb(0.05, 0.05, 0.05))
+                    .set_color(Color::from_rgb(0.5, 0.5, 0.5))
                     .reset_texture()
                     .set_z(OUTLINE_Z)
             );
@@ -477,11 +516,11 @@ impl SpacecraftApp {
                     .stretch(component.body().scale().as_vec2() + outline_thickness);
 
                 let texture = match component.body().origin {
-                    ComponentType::LaserWeapon => Txts::LaserWeaponComponent,
-                    ComponentType::Central => Txts::BlockComponent,
+                    ComponentType::KineticWeapon => Txts::KineticWeaponComponent,
+                    ComponentType::Central => Txts::CentralBlockComponent,
                     ComponentType::MissileLauncher => Txts::MissileWeaponComponent,
                     ComponentType::RaptorEngine => Txts::RaptorEngineComponent,
-                    ComponentType::SteelBlock => Txts::BlockComponent,
+                    ComponentType::SteelBlock => Txts::SteelBlockComponent,
                 };
 
                 let component_shape = Shape::from_square()
@@ -490,7 +529,7 @@ impl SpacecraftApp {
                     .set_z(if component.body().top().is_none() {
                         SPACECRAFT_Z
                     } else {
-                        SPACECRAFT_Z - 0.01
+                        TOP_COMPONENT_Z
                     });
 
                 self.physical_shapes.push(component_shape);
@@ -501,6 +540,9 @@ impl SpacecraftApp {
                         .set_z(OUTLINE_Z)
                         .reset_texture();
                     self.physical_shapes.push(component_outline);
+
+                    let component_grad = Shape::from_square().apply(gtransform).set_texture(Txts::CircleGrad).set_z(GRAD_Z);
+                    self.physical_shapes.push(component_grad);
                 }
             }
         }
@@ -578,8 +620,8 @@ impl SpacecraftApp {
                                     + Vec2::random_unit_circle() * 0.5,
                                 radius,
                                 rand::random::<f32>() * 2.7,
-                                Color::from_rgb(0.5, 0.5, 1.),
-                                Color::from_rgb(0.05, 0.05, 0.2),
+                                Color::from_rgb(1.0, 0.7, 0.2),
+                                Color::from_rgb(0.5, 0.2, 0.05),
                             )));
                     }
                     _ => (),
@@ -598,6 +640,7 @@ impl SpacecraftApp {
     fn draw_egui(&mut self) {
         let user = self.user();
         let mut game = self.game.write().unwrap();
+
 
         if let Some(follow_target) = self.follow_target {
             let game_object = game.game_objects.get(&follow_target).unwrap();

@@ -19,6 +19,7 @@ strum = { version = "0.24.1", features = ["derive"] }
 rodio = "0.17.1"
 serde = { version = "1", features = ["derive"] }
 enum-bytes = {git = "https://github.com/patrik-cihal/enum-bytes"}
+clap = "4.5.2"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -26,7 +27,7 @@ crate-type = ["cdylib", "rlib"]
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 dlopen = "0.1.8"
 dlopen_derive = "0.1.4"
-tokio-tungstenite = "0.21.0"
+tokio-tungstenite = "0.20"
 futures-util = "0.3.26"
 futures = "0.3.26"
 tokio = { version="1.28", features=["rt-multi-thread",] }

@@ -30,7 +30,7 @@ impl Controller {
             deserialize_bytes::<(Vec<GameCmd>, Vec<String>)>(&output.stdout).unwrap();
 
         // for log in logs {
-        //     println!("{}", log);
+        //    // println!("{}", log);
         // }
 
         cmds
