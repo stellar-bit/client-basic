@@ -9,7 +9,6 @@ license = "MIT"
 [dependencies]
 stellar-bit-core = { git="https://github.com/stellar-bit/core" }
 stellar-bit-central-hub-api ={ git = "https://github.com/stellar-bit/central-hub-api" }
-anyhow = "1.0.69"
 getrandom = { version = "0.2", features = ["js"] }
 rand = "0.8.5"
 ellipsoid = { git = "https://github.com/patrik-cihal/ellipsoid" }
@@ -27,10 +26,10 @@ crate-type = ["cdylib", "rlib"]
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 dlopen = "0.1.8"
 dlopen_derive = "0.1.4"
-tokio-tungstenite = "0.20"
-futures-util = "0.3.26"
-futures = "0.3.26"
-tokio = { version="1.28", features=["rt-multi-thread",] }
+tokio-tungstenite = "0.21" # MUST USE 0.19 otherwise is unable to send more than x requests where x is quite small number
+futures-util = "0.3"
+futures = "0.3"
+tokio = { version="1.37", features=["full", "tracing"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4.30"

@@ -20,23 +20,27 @@ pub struct NetworkConnection {
 }
 
 impl NetworkConnection {
-    pub fn start(
+    pub async fn start(
         server_addr: String,
         game: Arc<RwLock<Game>>,
         user: Arc<RwLock<User>>,
     ) -> Result<Self, NetworkError> {
-        let client = NetworkClient::connect(&server_addr, game.clone(), user)?;
+        let client = NetworkClient::connect(&server_addr, game.clone(), user).await?;
         Ok(Self {
             client,
             server_addr,
         })
     }
-    pub fn send_multiple(&mut self, msgs: Vec<ClientRequest>) -> Result<(), NetworkError> {
+    pub fn send_multiple(&mut self, msgs: Vec<ClientRequest>) {
         self.client.send_multiple(msgs)
     }
-    pub fn send(&mut self, msg: ClientRequest) -> Result<(), NetworkError> {
+    pub fn send(&mut self, msg: ClientRequest) {
         self.client.send(msg)
     }
+    pub fn sync_clock(&mut self) {
+        self.client.sync_clock();
+    }
+
 }
 
 fn handle_server_response(
@@ -44,9 +48,8 @@ fn handle_server_response(
     game: Arc<RwLock<Game>>,
     time_delay: Arc<RwLock<i64>>,
     user: Arc<RwLock<User>>,
-    sync_response_sender: &mpsc::Sender<ServerResponse>,
-) {
-    println!("Received response from server {:?}", response);
+    sync_response_sender: &std::sync::mpsc::Sender<ServerResponse>,
+) -> bool {
     match response {
         ServerResponse::SyncFullGame(new_game) => {
             let mut game = game.write().unwrap();
@@ -66,7 +69,7 @@ fn handle_server_response(
                     }
                 }
                 if let Err(e) = game.execute_cmd(cmd_user, cmd.clone()) {
-                    eprintln!("Gmae cmd from server {:?} couldn't execute: {:?}", cmd, e);
+                    eprintln!("Gamae cmd from server {:?} couldn't execute: {:?}", cmd, e);
                 }
             });
         }
@@ -80,5 +83,6 @@ fn handle_server_response(
             sync_response_sender.send(ServerResponse::SyncClock(remote_clock)).unwrap();
         }
         _ => (),
-    }
+    };
+    return true;
 }

@@ -1,6 +1,6 @@
 
 
-use std::{path::Path, time::Duration};
+use std::{path::Path, thread::yield_now, time::Duration};
 
 use self::particles::{ParticleSystem, ShrinkingCircle};
 
@@ -8,6 +8,7 @@ use super::*;
 
 mod controller_select;
 
+use futures::Future;
 use stellar_bit_central_hub_api::{HubAPI, ServerDetails, UserData};
 use controller_select::Controller;
 
@@ -19,7 +20,6 @@ mod sounds;
 
 use ellipsoid::prelude::egui_file::FileDialog;
 use ellipsoid::prelude::Textures;
-use futures::executor::block_on;
 use rand::random;
 use sounds::SoundManager;
 
@@ -34,6 +34,7 @@ use log::warn;
 use rodio::OutputStream;
 use strum::IntoEnumIterator;
 use enum_bytes::{enum_bytes};
+use tokio::runtime::Runtime;
 
 const FRIENDLY_COLOR: Color = Color::from_rgb(0. / 255., 186. / 255., 130. / 255.);
 const ENEMY_COLOR: Color = Color::from_rgb(186. / 255., 0. / 255., 50. / 255.);
@@ -174,14 +175,20 @@ pub struct SpacecraftApp {
     egui_fields: EguiFields,
     sound_manager: SoundManager,
     physical_shapes: Vec<Shape<Txts>>,
-    hub_conn: Option<Arc<HubAPI>>
+    hub_conn: Option<Arc<HubAPI>>,
+    rt: Runtime
 }
 
 
 impl App<Txts> for SpacecraftApp {
-    async fn new(window: winit::window::Window) -> Self {
+    fn new(window: winit::window::Window) -> Self {
 
-        let graphics = Graphics::new(window).await;
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let graphics = rt.block_on(Graphics::new(window));
 
 
         let mut init_game = Game::new();
@@ -222,11 +229,12 @@ impl App<Txts> for SpacecraftApp {
             let user_id = data.next().unwrap().parse::<i64>().unwrap();
 
             
-            let network_connection_res = NetworkConnection::start(addr.into(), game.clone(), user.clone());
+            let network_connection_res = block_on(&rt, NetworkConnection::start(addr.into(), game.clone(), user.clone()));
             match network_connection_res {
                 Ok(mut network_connection) => {
-                    network_connection.send(ClientRequest::Join(user_id as u64, acc_token.into())).unwrap();
-                    network_connection.send(ClientRequest::FullGameSync).unwrap();
+                    network_connection.sync_clock();
+                    network_connection.send(ClientRequest::Join(user_id as u64, acc_token.into()));
+                    network_connection.send(ClientRequest::FullGameSync);
                     println!("Successfully connected to server {:?}!", addr);
                     network_connection
                 }
@@ -255,6 +263,7 @@ impl App<Txts> for SpacecraftApp {
             sound_manager: SoundManager::new(),
             physical_shapes: vec![],
             hub_conn: None,
+            rt
         }
     }
 
@@ -396,9 +405,11 @@ impl SpacecraftApp {
 
     fn update_network(&mut self) {
         let requests = std::mem::take(&mut self.network_msgs);
+        if requests.len() == 0 {
+            return;
+        }
         if let Some(network_connection) = &mut self.network_connection {
-            // TODO: possible error cuz no req empty check
-            network_connection.send_multiple(requests).unwrap();
+            network_connection.send_multiple(requests);
         }
     }
 
@@ -731,11 +742,12 @@ impl SpacecraftApp {
                 integer_edit_field(ui, &mut self.egui_fields.user_id);
                 egui::TextEdit::singleline(&mut self.egui_fields.access_token).password(true).show(ui);
                 if ui.button("Join").clicked() {
-                    let network_connection_res = NetworkConnection::start(self.egui_fields.server_addr.clone(), self.game.clone(), self.user.clone());
+                    let network_connection_res = block_on(&self.rt, NetworkConnection::start(self.egui_fields.server_addr.clone(), self.game.clone(), self.user.clone()));
                     match network_connection_res {
                         Ok(mut network_connection) => {
-                            network_connection.send(ClientRequest::Join(self.egui_fields.user_id as u64, self.egui_fields.access_token.clone())).unwrap();
-                            network_connection.send(ClientRequest::FullGameSync).unwrap();
+                            network_connection.sync_clock();
+                            network_connection.send(ClientRequest::Join(self.egui_fields.user_id as u64, self.egui_fields.access_token.clone()));
+                            network_connection.send(ClientRequest::FullGameSync);
                             self.network_connection = Some(network_connection);
                             println!("Successfully connected to server {:?}!", self.egui_fields.server_addr);
                         }
@@ -757,8 +769,8 @@ impl SpacecraftApp {
                             let button = egui::Button::new(&server.name);
                             if let Some(addr) = &server.addr {
                                 if ui.add_enabled(true, button).clicked() {
-                                    let server_acc = block_on(hub_conn.access_server(server.id));
-                                    self.egui_fields.user_id = block_on(hub_conn.my_user_data()).id;
+                                    let server_acc = block_on(&self.rt, hub_conn.access_server(server.id));
+                                    self.egui_fields.user_id = block_on(&self.rt, hub_conn.my_user_data()).id;
                                     self.egui_fields.server_addr = "ws://".to_string() + &server_acc.server_addr;
                                     self.egui_fields.access_token = server_acc.access_token;
                                 }
@@ -842,7 +854,7 @@ impl SpacecraftApp {
                 ui.label("Password");
                 egui::TextEdit::singleline(&mut self.egui_fields.password).password(true).show(ui);
                 if ui.button("Log In").clicked() {
-                    match block_on(HubAPI::connect(self.egui_fields.username.clone(), self.egui_fields.password.clone())) {
+                    match block_on(&self.rt, HubAPI::connect(self.egui_fields.username.clone(), self.egui_fields.password.clone())) {
                         Ok(hub_conn) => {
                             println!("Successfully connected to central hub!");
                             self.hub_conn = Some(Arc::new(hub_conn));
@@ -871,4 +883,9 @@ impl SpacecraftApp {
             user => user,
         }
     }
+}
+
+
+fn block_on<F: Future>(rt: &Runtime, f: F) -> <F>::Output {
+    rt.block_on(f)
 }

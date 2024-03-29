@@ -1,70 +1,90 @@
-use std::sync::mpsc;
+use std::{time::Duration};
 
 use futures_util::{sink::SinkExt, stream::SplitSink, StreamExt};
-use tokio::net::TcpStream;
+use tokio::{net::TcpStream, task::yield_now, sync::mpsc};
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
 use super::*;
 
 pub struct DesktopNetworkClient {
-    ws_sender: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     receive_task: tokio::task::JoinHandle<()>,
+    send_task: tokio::task::JoinHandle<()>,
     time_delay: Arc<RwLock<i64>>,
-    sync_response_receiver: mpsc::Receiver<ServerResponse>,
+    sync_response_receiver: std::sync::mpsc::Receiver<ServerResponse>,
+    send_tx: mpsc::Sender<Vec<ClientRequest>>
 }
 
 impl DesktopNetworkClient {
-    pub fn connect(
+    pub async fn connect(
         server_addr: &str,
         game: Arc<RwLock<Game>>,
         user: Arc<RwLock<User>>,
     ) -> Result<Self, NetworkError> {
-        let result = futures::executor::block_on((|| async move {
-            let ws_stream = connect_async(server_addr)
-                .await
-                .map_err(|_e| NetworkError::WebsocketTrouble)?
-                .0;
-            let (ws_sender, mut ws_receiver) = ws_stream.split();
-            let (sync_response_sender, sync_response_receiver) = mpsc::channel();
+        let ws_stream = connect_async(server_addr)
+            .await
+            .map_err(|_e| NetworkError::WebsocketTrouble)?
+            .0;
+        let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+        let (sync_response_sender, sync_response_receiver) = std::sync::mpsc::channel();
 
-            let time_delay = Arc::new(RwLock::new(0));
+        let time_delay = Arc::new(RwLock::new(0));
 
-            let receive_task = {
-                let game = game.clone();
-                let time_delay = time_delay.clone();
-                let user = user.clone();
-                tokio::task::spawn(async move {
-                    while let Some(msg) = ws_receiver.next().await {
-                        let msg = msg.unwrap();
-                        let response: ServerResponse = deserialize_bytes(&msg.into_data()).unwrap();
-                        handle_server_response(
-                            response,
-                            game.clone(),
-                            time_delay.clone(),
-                            user.clone(),
-                            &sync_response_sender,
-                        );
-                    }
-                })
-            };
-            Ok(Self {
-                ws_sender,
-                receive_task,
-                sync_response_receiver,
-                time_delay,
+        let (send_tx, mut rx) = mpsc::channel::<Vec<ClientRequest>>(5);
+
+        let receive_task = {
+            let game = game.clone();
+            let time_delay = time_delay.clone();
+            let user = user.clone();
+            tokio::spawn(async move {
+                while let Some(msg) = ws_receiver.next().await {
+                    let msg = msg.unwrap();
+                    let response: ServerResponse = deserialize_bytes(&msg.into_data()).unwrap();
+                    handle_server_response(
+                        response,
+                        game.clone(),
+                        time_delay.clone(),
+                        user.clone(),
+                        &sync_response_sender,
+                    );
+                }
+                // loop {
+                //     tokio::time::sleep(Duration::from_millis(50)).await;
+                // }
             })
-        })())?;
+        };
+
+        let send_task = {
+            tokio::spawn(async move {
+                while let Some(msgs) = rx.recv().await {
+                    for msg in &msgs {
+                        ws_sender
+                            .feed(Message::Binary(serialize_bytes(&msg).unwrap()))
+                            .await
+                            .unwrap()
+                    }
+                    ws_sender
+                        .flush()
+                        .await
+                        .unwrap();
+                }
+            })
+        };
 
 
-        // result.sync_clock();
 
-        Ok(result)
+        Ok(Self {
+            receive_task,
+            sync_response_receiver,
+            send_tx,
+            time_delay,
+            send_task
+        })
     }
     pub fn sync_clock(&mut self) {
         let mut time_delays = vec![0; 15];
         for time_delay in &mut time_delays {
             let start = std::time::Instant::now();
-            self.send(ClientRequest::SyncClock).unwrap();
+            self.send(ClientRequest::SyncClock);
             let ServerResponse::SyncClock(mut remote_clock) =
                 self.sync_response_receiver.recv().unwrap()
             else {
@@ -99,24 +119,11 @@ impl DesktopNetworkClient {
             self.time_delay.read().unwrap()
         );
     }
-    pub fn send(&mut self, msg: ClientRequest) -> Result<(), NetworkError> {
-        self.send_multiple(vec![msg])?;
-        Ok(())
+    pub fn send(&mut self, msg: ClientRequest) {
+        self.send_multiple(vec![msg]);
     }
-    pub fn send_multiple(&mut self, msgs: Vec<ClientRequest>) -> Result<(), NetworkError> {
-        futures::executor::block_on((|| async move {
-            for msg in &msgs {
-                self.ws_sender
-                    .feed(Message::Binary(serialize_bytes(&msg).unwrap()))
-                    .await
-                    .map_err(|_e| NetworkError::WebsocketTrouble)?;
-            }
-            self.ws_sender
-                .flush()
-                .await
-                .map_err(|_e| NetworkError::WebsocketTrouble)?;
-            Ok::<(), NetworkError>(())
-        })())
+    pub fn send_multiple(&mut self, msgs: Vec<ClientRequest>) {
+        self.send_tx.blocking_send(msgs).unwrap();
     }
 }
 
