@@ -26,7 +26,7 @@ crate-type = ["cdylib", "rlib"]
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 dlopen = "0.1.8"
 dlopen_derive = "0.1.4"
-tokio-tungstenite = "0.21" # MUST USE 0.19 otherwise is unable to send more than x requests where x is quite small number
+tokio-tungstenite = "0.21"
 futures-util = "0.3"
 futures = "0.3"
 tokio = { version="1.37", features=["full", "tracing"] }

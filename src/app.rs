@@ -758,7 +758,7 @@ impl SpacecraftApp {
                     if self.time_intervals.hub_servers.check() {
                         let servers_c = self.egui_fields.hub_servers.clone();
                         let hub_conn_c = hub_conn.clone();
-                        tokio::spawn(async move {
+                        self.rt.spawn(async move {
                             let servers = hub_conn_c.servers().await;
                             *servers_c.lock().unwrap() = servers;
                         });
