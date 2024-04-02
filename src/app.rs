@@ -725,9 +725,11 @@ impl SpacecraftApp {
         });
 
         egui::Window::new("Server log").show(&self.graphics.egui_platform.context(), |ui| {
-            for msg in &game.log {
-                ui.label(msg);
-            }
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                for msg in &game.log {
+                    ui.label(msg);
+                }
+            });
         });
 
         egui::Window::new("Network connection").show(&self.graphics.egui_platform.context(), |ui| {
