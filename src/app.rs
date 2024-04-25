@@ -200,7 +200,7 @@ impl App<Txts> for SpacecraftApp {
                                 (Material::Copper, 2000.),
                                 (Material::Carbon, 2000.),].into_iter().collect())).unwrap();
         for _ in 0..300 {
-            init_game.execute_cmd(User::Server, GameCmd::SpawnRandomAsteroid(Vec2::random_unit_circle()*1000., Vec2::random_unit_circle()*10.)).unwrap();
+            init_game.execute_cmd(User::Server, GameCmd::SpawnRandomAsteroid(Vec2::random_unit_circle()*10000., Vec2::random_unit_circle()*10.)).unwrap();
         }
 
         let game: Arc<RwLock<Game>> = Arc::new(RwLock::new(init_game));
@@ -640,6 +640,10 @@ impl SpacecraftApp {
             }
         }
 
+        for projectile in game.projectiles() {
+            self.particle_system.add_particle(Box::new(ShrinkingCircle::new(projectile.body.position, projectile.body.velocity-projectile.body.velocity.normalize()*30., 0.1, 0.3, Color::from_rgb(0.2, 0.2, 0.2), Color::from_rgb(0.5, 0.5, 0.5))));
+        }
+
         for particle_shape in self.particle_system.draw() {
             self.physical_shapes.push(
                 particle_shape
@@ -667,6 +671,7 @@ impl SpacecraftApp {
                         game_object.body().angular_velocity
                     ));
                     ui.label(format!("Health: {}", game_object.health()));
+                    ui.label(format!("Mass: {}", game_object.mass()));
                     ui.label(format!("Owner: {:?}", game_object.owner()));
                     // ui.collapsing("Details", |ui| {
                     match game_object {
@@ -705,18 +710,29 @@ impl SpacecraftApp {
                     let mut game_objects =
                         game.game_objects.clone().into_iter().collect::<Vec<_>>();
                     game_objects.sort_by_key(|x| x.0);
-                    for (id, game_object) in game_objects {
-                        if game_object.owner() == Some(player_id) {
-                            let game_object_text: &'static str = game_object.into();
-                            if ui
-                                .button(format!("{} [{}]", game_object_text, id))
-                                .clicked()
-                            {
-                                self.follow_target = Some(id);
-                                self.camera.offset = Vec2::ZERO;
+                    let mut focus_gameobjects_panel = |ui: &mut egui::Ui, game_objects: Vec<&(u16, GameObject)>| {
+                        for (id, game_object) in game_objects {
+                            if game_object.owner() == Some(player_id) {
+                                let game_object_text: &'static str = game_object.into();
+                                if ui
+                                    .button(format!("{} [{}]", game_object_text, id))
+                                    .clicked()
+                                {
+                                    self.follow_target = Some(*id);
+                                    self.camera.offset = Vec2::ZERO;
+                                }
                             }
                         }
-                    }
+                    };
+                    ui.collapsing("Star Bases", |ui| {
+                        focus_gameobjects_panel(ui, game_objects.iter().filter(|(_, go)| if let GameObject::StarBase(_) = &go { true } else { false }).collect::<Vec<_>>());
+                    });
+                    ui.collapsing("Spacecrafts", |ui| {
+                        focus_gameobjects_panel(ui, game_objects.iter().filter(|(_, go)| if let GameObject::Spacecraft(_) = &go { true } else { false }).collect::<Vec<_>>());
+                    });
+                    ui.collapsing("Projectiles", |ui| {
+                        focus_gameobjects_panel(ui, game_objects.iter().filter(|(_, go)| if let GameObject::Projectile(_) = &go { true } else { false }).collect::<Vec<_>>());
+                    });
                 }
                 User::Spectator => {
                     ui.label("Spectator");
