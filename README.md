@@ -11,6 +11,6 @@ It can be found under the name: `stellar-bit-client`.
 
 You can execute it from your terminal.
 
-If you want to directly connect to public server you can also copy the command that appears when clicking `JOIN` button at a specific server at the [Stellar Bit](https://stelar-bit.com/) website.
+If you want to directly connect to public server you can also copy the command that appears when clicking `JOIN` button at a specific server at the [Stellar Bit](https://stellar-bit.com/) website.
 
      
