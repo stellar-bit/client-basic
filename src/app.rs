@@ -308,6 +308,7 @@ impl App<Txts> for SpacecraftApp {
                     self.camera.zoom += pos.y as f32 / 1000.;
                 }
             }
+            self.camera.zoom = self.camera.zoom.min(-4.0).max(-15.0);
 
             return true;
         } else if let WindowEvent::MouseInput { state, button, .. } = event {
