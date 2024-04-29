@@ -825,7 +825,10 @@ impl SpacecraftApp {
                             let game_json = std::fs::read_to_string(path).unwrap();
                             let game_res = serde_json::from_str::<Game>(&game_json);
                             match game_res {
-                                Ok(game_parsed) => {*game = game_parsed;}
+                                Ok(mut game_parsed) => {
+                                    game_parsed.sync.last_update = now();
+                                    *game = game_parsed;
+                                }
                                 Err(e) => eprintln!("Error when parsing game file at {:?} ({:?})!", path, e)
                             }
                         }
