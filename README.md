@@ -4,7 +4,8 @@ A basic client, using custom rendering library `ellipsoid`, and calling prgramma
 
 ## How to install
 1. Install [Rust](https://rustup.rs/)
-2. Execute `cargo install --git https://github.com/stellar-bit/client-basic` in your terminal
+2. Set the nightly version: `rustup default nightly`
+3. Execute `cargo install --git https://github.com/stellar-bit/client-basic` in your terminal
 
 ## How to use
 It can be found under the name: `stellar-bit-client`.
