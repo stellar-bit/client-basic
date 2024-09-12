@@ -2,6 +2,8 @@
 
 A basic client, using custom rendering library `ellipsoid`, and calling prgrammable computers through FFI (foreign functional interface).
 
+![stellar-bit-release-v0-xkbsjiztznxc1](https://github.com/user-attachments/assets/29f346f2-c5e8-4985-8709-ae3050120e88)
+
 ## How to install
 1. Install [Rust](https://rustup.rs/)
 2. Set the nightly version: `rustup default nightly`
