@@ -464,6 +464,33 @@ impl SpacecraftApp {
 
         self.graphics.add_geometry(background.into());
 
+        // Drawing horizontal lines (rows)
+        for row in -100..100 {
+            let y = row as f32 * 50.0;
+            let line_gt = GTransform::from_translation(Vec2::new(0.0, y))
+                .stretch(Vec2::new(100_000.0, 5.0));
+            let line_shape = Shape::from_square_centered()
+                .apply(line_gt)
+                .set_color(Color::from_rgba(0.0, 0.0, 0.0, 0.2))
+                .set_z(BACKGROUND_Z - 0.001);
+
+            self.physical_shapes.push(line_shape);
+        }
+
+        // Drawing vertical lines (columns)
+        for col in -100..100 {
+            let x = col as f32 * 50.0;
+            let line_gt = GTransform::from_translation(Vec2::new(x, 0.0))
+                .stretch(Vec2::new(5.0, 100_000.0));
+            let line_shape = Shape::from_square_centered()
+                .apply(line_gt)
+                .set_color(Color::from_rgba(0.0, 0.0, 0.0, 0.2))
+                .set_z(BACKGROUND_Z - 0.001);
+
+            self.physical_shapes.push(line_shape);
+        }
+
+
         // for star in &self.stars {
         //     let pos = star.pos - self.camera.position() * star.parallax;
         //     let size_mp = self.camera.mp().powf(1000.*star.parallax);
