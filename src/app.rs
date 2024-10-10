@@ -464,41 +464,43 @@ impl SpacecraftApp {
 
         self.graphics.add_geometry(background.into());
 
-        // Drawing horizontal lines (rows)
-        for row in -100..100 {
-            let y = row as f32 * 50.0;
-            let line_gt = GTransform::from_translation(Vec2::new(0.0, y))
-                .stretch(Vec2::new(100_000.0, 5.0));
-            let line_shape = Shape::from_square_centered()
-                .apply(line_gt)
-                .set_color(Color::from_rgba(0.0, 0.0, 0.0, 0.2))
-                .set_z(BACKGROUND_Z - 0.001);
+        let mut draw_grid = |grid_size: f32, alpha: f32, z_offs: f32| {
+            for row in -100..100 {
+                let y = row as f32 * grid_size;
+                let line_gt = GTransform::from_translation(Vec2::new(0.0, y))
+                    .stretch(Vec2::new(1_000_000.0, grid_size / 10.));
+                let line_shape = Shape::from_square_centered()
+                    .apply(line_gt)
+                    .set_color(Color::from_rgba(0.0, 0.0, 0.0, 0.2*alpha))
+                    .set_z(BACKGROUND_Z - 0.001 + z_offs);
 
-            self.physical_shapes.push(line_shape);
-        }
+                self.physical_shapes.push(line_shape);
+            }
 
-        // Drawing vertical lines (columns)
-        for col in -100..100 {
-            let x = col as f32 * 50.0;
-            let line_gt = GTransform::from_translation(Vec2::new(x, 0.0))
-                .stretch(Vec2::new(5.0, 100_000.0));
-            let line_shape = Shape::from_square_centered()
-                .apply(line_gt)
-                .set_color(Color::from_rgba(0.0, 0.0, 0.0, 0.2))
-                .set_z(BACKGROUND_Z - 0.001);
+            // Drawing vertical lines (columns)
+            for col in -100..100 {
+                let x = col as f32 * grid_size;
+                let line_gt = GTransform::from_translation(Vec2::new(x, 0.0))
+                    .stretch(Vec2::new(grid_size / 10., 1_000_000.0));
+                let line_shape = Shape::from_square_centered()
+                    .apply(line_gt)
+                    .set_color(Color::from_rgba(0.0, 0.0, 0.0, 0.2*alpha))
+                    .set_z(BACKGROUND_Z - 0.001 + z_offs);
 
-            self.physical_shapes.push(line_shape);
-        }
+                self.physical_shapes.push(line_shape);
+            }
+        };
 
 
-        // for star in &self.stars {
-        //     let pos = star.pos - self.camera.position() * star.parallax;
-        //     let size_mp = self.camera.mp().powf(1000.*star.parallax);
-        //     let star_gt = GTransform::from_translation(pos).inflate(star.radius * size_mp);
-        //     let star_shape = Shape::from_circle(5).apply(star_gt).set_color(Color::from_rgba(0.9, 0.9, 1., 0.1)).set_z(BACKGROUND_Z-0.001);
+        let jmp_size = 1.0;
+        let zoom_jmp_low = (-self.camera.zoom / jmp_size).floor() * jmp_size;
+        let grid_size_low = 2f32.powf(zoom_jmp_low) / 8.;
+        let zoom_jmp_high = ((-self.camera.zoom / jmp_size).floor()+1.0) * jmp_size;
+        let grid_size_high = 2f32.powf(zoom_jmp_high) / 8.;
+        let zoom_jmp_prog = ((-self.camera.zoom) - zoom_jmp_low) / jmp_size;
 
-        //     self.shapes.push(star_shape.into());
-        // }
+        draw_grid(grid_size_low, 1.-zoom_jmp_prog, 0.0001);
+        draw_grid(grid_size_high, zoom_jmp_prog, 0.);
     }
 
     fn draw_game_objects(&mut self) {
