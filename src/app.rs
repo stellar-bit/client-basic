@@ -463,9 +463,10 @@ impl SpacecraftApp {
             .set_z(BACKGROUND_Z);
 
         self.graphics.add_geometry(background.into());
+        let line_cnt_span = 1000;
 
         let mut draw_grid = |grid_size: f32, alpha: f32, z_offs: f32| {
-            for row in -100..100 {
+            for row in -line_cnt_span..line_cnt_span {
                 let y = row as f32 * grid_size;
                 let line_gt = GTransform::from_translation(Vec2::new(0.0, y))
                     .stretch(Vec2::new(1_000_000.0, grid_size / 10.));
@@ -478,7 +479,7 @@ impl SpacecraftApp {
             }
 
             // Drawing vertical lines (columns)
-            for col in -100..100 {
+            for col in -line_cnt_span..line_cnt_span {
                 let x = col as f32 * grid_size;
                 let line_gt = GTransform::from_translation(Vec2::new(x, 0.0))
                     .stretch(Vec2::new(grid_size / 10., 1_000_000.0));
