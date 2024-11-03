@@ -36,6 +36,10 @@ pub fn run_headless(server_addr: String, access_token: String, user_id: u64, com
     let mut controller = Controller::new();
     controller.select_computer(computer_path);
 
+    // Add sync intervals
+    let mut cmds_sync_interval = Interval::new(time::Duration::from_millis(300));
+    let mut game_sync_interval = Interval::new(time::Duration::from_millis(3000));
+
     // Connect to server
     let network_connection_res = rt.block_on(NetworkConnection::start(
         server_addr.clone(),
@@ -72,6 +76,14 @@ pub fn run_headless(server_addr: String, access_token: String, user_id: u64, com
 
                 if !network_game_cmds.is_empty() {
                     network_connection.send(ClientRequest::ExecuteGameCmds(network_game_cmds));
+                }
+
+                // Send sync requests
+                if cmds_sync_interval.check() {
+                    network_connection.send(ClientRequest::GameCmdsSync);
+                }
+                if game_sync_interval.check() {
+                    network_connection.send(ClientRequest::FullGameSync);
                 }
 
                 std::thread::sleep(std::time::Duration::from_millis(10));
