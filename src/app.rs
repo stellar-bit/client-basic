@@ -6,7 +6,7 @@ use self::particles::{ParticleSystem, ShrinkingCircle};
 
 use super::*;
 
-mod controller_select;
+pub mod controller_select;
 
 use futures::Future;
 use stellar_bit_central_hub_api::{HubAPI, ServerDetails, UserData};
