@@ -1,6 +1,7 @@
 #![feature(let_chains)]
 #![feature(extract_if)]
 
+use log::warn;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
@@ -9,6 +10,7 @@ use stellar_bit_core::prelude::{vec2, Vec2, *};
 use std::sync::{Arc,RwLock,Mutex};
 use std::path::PathBuf;
 use app::controller_select::Controller;
+use stellar_bit_central_hub_api::HubAPI;
 
 mod app;
 pub use app::{SpacecraftApp, Txts};
@@ -21,11 +23,33 @@ pub fn run() {
     ellipsoid::run::<Txts, SpacecraftApp>();
 }
 
-pub fn run_headless(server_addr: String, access_token: String, user_id: u64, computer_path: PathBuf) {
+pub fn run_headless(
+    server_id: i64, 
+    username: String, 
+    password: String, 
+    computer_path: PathBuf
+) {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .unwrap();
+
+    // Connect to central hub first
+    let hub_conn = match rt.block_on(HubAPI::connect(username.clone(), password)) {
+        Ok(conn) => {
+            println!("Successfully connected to central hub as '{}'!", username);
+            conn
+        }
+        Err(err) => {
+            eprintln!("Failed to connect to central hub: {:?}", err);
+            return;
+        }
+    };
+
+    // Get user data and server access
+    let user_id = rt.block_on(hub_conn.my_user_data()).id;
+
+    let server_access = rt.block_on(hub_conn.access_server(server_id));
 
     let mut init_game = Game::new();
     init_game.execute_cmd(User::Server, GameCmd::AddPlayer(0)).unwrap();
@@ -42,7 +66,7 @@ pub fn run_headless(server_addr: String, access_token: String, user_id: u64, com
 
     // Connect to server
     let network_connection_res = rt.block_on(NetworkConnection::start(
-        server_addr.clone(),
+        format!("ws://{}", server_access.server_addr),
         game.clone(),
         user.clone(),
     ));
@@ -50,16 +74,20 @@ pub fn run_headless(server_addr: String, access_token: String, user_id: u64, com
     match network_connection_res {
         Ok(mut network_connection) => {
             network_connection.sync_clock();
-            network_connection.send(ClientRequest::Join(user_id, access_token));
+            network_connection.send(ClientRequest::Join(user_id as u64, server_access.access_token));
             network_connection.send(ClientRequest::FullGameSync);
             println!("Successfully connected to server!");
 
             loop {
                 let mut game = game.write().unwrap();
-                let user = User::Player(user_id);
+                let user = User::Player(user_id as u64);
                 
                 // Update game state
                 if game.sync.last_update >= now() {
+                    warn!(
+                        "Last game update is in the future [+{:?}]??!",
+                        game.sync.last_update - now()
+                    );
                     std::thread::sleep(std::time::Duration::from_millis(10));
                     continue;
                 }

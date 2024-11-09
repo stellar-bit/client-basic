@@ -8,10 +8,26 @@ fn main() {
         .author("Your Name")
         .about("A client for Stellar Bit")
         .arg(
-            Arg::new("join")
-                .long("join")
-                .value_name("ADDRESS")
-                .help("Server address to join. Format: \"address access_token user_id\"")
+            Arg::new("server-id")
+                .long("server-id")
+                .value_name("ID")
+                .help("Server ID to join")
+                .value_parser(clap::value_parser!(i64))
+                .requires("headless")
+        )
+        .arg(
+            Arg::new("username")
+                .long("username")
+                .value_name("USERNAME")
+                .help("Central hub username")
+                .requires("headless")
+        )
+        .arg(
+            Arg::new("password")
+                .long("password")
+                .value_name("PASSWORD")
+                .help("Central hub password")
+                .requires("headless")
         )
         .arg(
             Arg::new("headless")
@@ -29,20 +45,21 @@ fn main() {
         .get_matches();
 
     if matches.get_flag("headless") {
-        if let Some(computer_path) = matches.get_one::<String>("computer") {
-            if let Some(join_data) = matches.get_one::<String>("join") {
-                let mut join_parts = join_data.split_whitespace();
-                let addr = join_parts.next().unwrap_or("");
-                let token = join_parts.next().unwrap_or("");
-                let user_id = join_parts.next().unwrap_or("0").parse().unwrap_or(0);
-                
-                run_headless(addr.to_string(), token.to_string(), user_id, PathBuf::from(computer_path));
-            } else {
-                eprintln!("Error: Headless mode requires --join argument");
-            }
-        } else {
-            eprintln!("Error: Headless mode requires --computer argument");
-        }
+        let computer_path = matches.get_one::<String>("computer")
+            .expect("Computer path is required for headless mode").to_owned();
+        let server_id = matches.get_one::<i64>("server-id")
+            .expect("Server ID is required for headless mode");
+        let username = matches.get_one::<String>("username")
+            .expect("Username is required for headless mode").to_owned();
+        let password = matches.get_one::<String>("password")
+            .expect("Password is required for headless mode").to_owned();
+        
+        run_headless(
+            *server_id,
+            username,
+            password,
+            PathBuf::from(computer_path)
+        );
     } else {
         run();
     }
