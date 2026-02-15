@@ -109,7 +109,7 @@ impl DesktopNetworkClient {
 
         let standard_deviation = ((sum_of_squares / time_delays.len() as i64) as f64).sqrt() as i64;
         let _ = time_delays
-            .extract_if(|time_delay| (*time_delay - median).abs() > standard_deviation)
+            .extract_if(.., |time_delay: &mut i64| (*time_delay - median).abs() > standard_deviation)
             .collect::<Vec<_>>();
 
         *self.time_delay.write().unwrap() =

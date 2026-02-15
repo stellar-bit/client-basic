@@ -1,5 +1,4 @@
 #![feature(let_chains)]
-#![feature(extract_if)]
 
 use log::warn;
 #[cfg(target_arch = "wasm32")]
